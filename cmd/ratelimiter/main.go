@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 
 	"github.com/jsperandio/RateLimiter/configs"
+	"github.com/jsperandio/RateLimiter/internal/entity"
 )
 
 func main() {
@@ -26,6 +27,18 @@ func main() {
 	cfg, err := configs.LoadConfig(".env")
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
+
+	globalLimits := entity.Limits{
+		IPMaxRequests:      cfg.IPMaxRequests,
+		IPBlockDuration:    cfg.IPBlockDuration,
+		TokenMaxRequests:   cfg.TokenMaxRequests,
+		TokenBlockDuration: cfg.TokenBlockDuration,
+	}
+
+	if err := globalLimits.Validate(); err != nil {
+		slog.Error("invalid rate limit configuration", "error", err)
 		os.Exit(1)
 	}
 
