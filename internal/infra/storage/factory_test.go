@@ -11,22 +11,22 @@ import (
 )
 
 func Test_NewDefaultStorageOptions(t *testing.T) {
-	t.Run("when STORAGE_STRATEGY is unset, should default to redis", func(t *testing.T) {
+	t.Run("when STORAGE_STRATEGY is unset, should default to memory", func(t *testing.T) {
 		t.Setenv("STORAGE_STRATEGY", "")
 
 		got, err := NewDefaultStorageOptions()
 
 		require.NoError(t, err)
-		assert.Equal(t, StrategyRedis, got.Strategy)
+		assert.Equal(t, StrategyMemory, got.Strategy)
 	})
 
 	t.Run("when STORAGE_STRATEGY is set, should use it", func(t *testing.T) {
-		t.Setenv("STORAGE_STRATEGY", StrategyMemory)
+		t.Setenv("STORAGE_STRATEGY", StrategyRedis)
 
 		got, err := NewDefaultStorageOptions()
 
 		require.NoError(t, err)
-		assert.Equal(t, StrategyMemory, got.Strategy)
+		assert.Equal(t, StrategyRedis, got.Strategy)
 	})
 }
 
