@@ -31,12 +31,12 @@ func (tc *testClock) Advance(d time.Duration) {
 	tc.now = tc.now.Add(d)
 }
 
-type spyStorage struct {
+type observerStorage struct {
 	entity.LimiterStorage
 	increments int
 }
 
-func (ss *spyStorage) Increment(ctx context.Context, key string, window time.Duration) (int64, error) {
+func (ss *observerStorage) Increment(ctx context.Context, key string, window time.Duration) (int64, error) {
 	ss.increments++
 
 	return ss.LimiterStorage.Increment(ctx, key, window)
@@ -83,7 +83,7 @@ func testLimits() entity.Limits {
 	}
 }
 
-func newTestUseCase(t *testing.T, clock *testClock) (*CheckRateLimitUseCase, *spyStorage) {
+func newTestUseCase(t *testing.T, clock *testClock) (*CheckRateLimitUseCase, *observerStorage) {
 	t.Helper()
 
 	memory, err := storage.NewMemoryStorage(&storage.MemoryStorageOptions{
@@ -93,7 +93,7 @@ func newTestUseCase(t *testing.T, clock *testClock) (*CheckRateLimitUseCase, *sp
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = memory.Close() })
 
-	spy := &spyStorage{
+	spy := &observerStorage{
 		LimiterStorage: memory,
 	}
 
@@ -271,7 +271,7 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.True(t, got.Allowed, "o balde do token e independente do balde do ip")
+		assert.True(t, got.Allowed, "o grupo do token e independente do grupo do ip")
 	})
 
 	t.Run("when neither ip nor token is given, should return ErrNoIdentifier", func(t *testing.T) {

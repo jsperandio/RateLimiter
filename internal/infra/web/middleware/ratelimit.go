@@ -41,7 +41,15 @@ func NewRateLimit(checker RateLimitChecker) echo.MiddlewareFunc {
 				return c.String(http.StatusTooManyRequests, TooManyRequestsMessage)
 			}
 
+			c.Set(ContextKeyRateLimit, output)
+
 			return next(c)
 		}
 	}
+}
+
+func RateLimitFromContext(c *echo.Context) (usecase.CheckRateLimitOutputDTO, bool) {
+	output, ok := c.Get(ContextKeyRateLimit).(usecase.CheckRateLimitOutputDTO)
+
+	return output, ok
 }

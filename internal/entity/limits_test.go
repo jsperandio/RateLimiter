@@ -107,7 +107,7 @@ func Test_ResolveLimit(t *testing.T) {
 		assert.Equal(t, RateLimitKindIP, got.Kind)
 	})
 
-	t.Run("when token has surrounding spaces, should not create a separate bucket", func(t *testing.T) {
+	t.Run("when token has surrounding spaces, should not create a separate key group", func(t *testing.T) {
 		spaced, err := ResolveLimit("1.2.3.4", "  abc123  ", testLimits())
 		require.NoError(t, err)
 

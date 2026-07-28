@@ -30,6 +30,7 @@ func NewWebServer(opt *WebServerOptions) (*WebServer, error) {
 	e := echo.New()
 	e.Logger = slog.Default()
 	e.IPExtractor = echo.ExtractIPDirect()
+	e.Use(middleware.RequestID())
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
@@ -43,8 +44,8 @@ func (ws *WebServer) Use(mw ...echo.MiddlewareFunc) {
 	ws.echo.Use(mw...)
 }
 
-func (ws *WebServer) RegisterRoute(method, path string, handler echo.HandlerFunc) {
-	ws.echo.Add(method, path, handler)
+func (ws *WebServer) RegisterRoute(method, path string, handler echo.HandlerFunc, mw ...echo.MiddlewareFunc) {
+	ws.echo.Add(method, path, handler, mw...)
 }
 
 func (ws *WebServer) Start(ctx context.Context) error {

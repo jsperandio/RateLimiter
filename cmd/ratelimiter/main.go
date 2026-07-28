@@ -9,10 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/labstack/echo/v5"
-
 	"github.com/jsperandio/RateLimiter/configs"
 	"github.com/jsperandio/RateLimiter/internal/infra/storage"
+	"github.com/jsperandio/RateLimiter/internal/infra/web/handler"
 	"github.com/jsperandio/RateLimiter/internal/infra/web/middleware"
 	"github.com/jsperandio/RateLimiter/internal/infra/web/webserver"
 	"github.com/jsperandio/RateLimiter/internal/usecase"
@@ -60,7 +59,9 @@ func run() error {
 	}
 
 	if closer, ok := limiterStorage.(io.Closer); ok {
-		defer func() { _ = closer.Close() }()
+		defer func() {
+			_ = closer.Close()
+		}()
 	}
 
 	checker := usecase.NewCheckRateLimitUseCase(limiterStorage, globalLimits, nil)
@@ -70,15 +71,11 @@ func run() error {
 		return err
 	}
 
-	ws.Use(middleware.NewRateLimit(checker))
+	ws.RegisterRoute(http.MethodGet, "/health", handler.Health)
 
-	ws.RegisterRoute(http.MethodGet, "/", func(c *echo.Context) error {
-		return c.String(http.StatusOK, "ok")
-	})
-
-	ws.RegisterRoute(http.MethodGet, "/health", func(c *echo.Context) error {
-		return c.String(http.StatusOK, "ok")
-	})
+	rateLimit := middleware.NewRateLimit(checker)
+	ws.RegisterRoute(http.MethodGet, "/dummy", handler.Dummy, rateLimit)
+	ws.RegisterRoute(http.MethodGet, "/", handler.Dummy, rateLimit)
 
 	slog.Info("starting application",
 		"storage", storageOptions.Strategy,

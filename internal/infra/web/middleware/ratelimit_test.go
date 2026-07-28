@@ -70,6 +70,39 @@ func Test_NewRateLimit(t *testing.T) {
 		assert.True(t, handlerWasCalled)
 	})
 
+	t.Run("when the request is allowed, should publish the result in the context", func(t *testing.T) {
+		checker := &mockRateLimitChecker{
+			allowed: true,
+		}
+		middleware := NewRateLimit(checker)
+
+		var got usecase.CheckRateLimitOutputDTO
+		var found bool
+
+		nextHandler := func(c *echo.Context) error {
+			got, found = RateLimitFromContext(c)
+			return nil
+		}
+
+		wrappedHandler := middleware(nextHandler)
+
+		e := echo.New()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/",
+			nil,
+		)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		require.NoError(t, wrappedHandler(c))
+
+		require.True(t, found, "o handler precisa conseguir ler o resultado do limiter")
+		assert.Equal(t, entity.RateLimitKindIP, got.Kind)
+		assert.Equal(t, 10, got.Limit)
+		assert.Equal(t, 9, got.Remaining)
+	})
+
 	t.Run("when the request is denied, should answer 429", func(t *testing.T) {
 		checker := &mockRateLimitChecker{
 			allowed: false,

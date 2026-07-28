@@ -31,51 +31,56 @@ make test         # local
 make test-docker   
 ```
 
+## Rotas
+
+| Rota | Rate limit | O que devolve |
+| --- | --- | --- |
+| `GET /health` | **não** | `ok` |
+| `GET /` | sim | alias de `/dummy` |
+| `GET /dummy` | sim | JSON com o limite e quantas requisições ainda restam |
+
+
 ## Vendo o limiter funcionar
 
 Com `make up`, os limites são 10 req/s por IP e 100 req/s por token.
 
 **Limite por IP**  
-As dez primeiras respondem `ok`, da 11ª em diante vem a mensagem de bloqueio:
+Cada resposta mostra quantas requisições ainda restam. Da 11ª em diante vem a mensagem de bloqueio:
 
 ```bash
-for i in $(seq 1 12); do curl -s localhost:8080/; echo; done
+for i in $(seq 1 12); do curl -s localhost:8080/dummy; done
 ```
 ```
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-you have reached the maximum number of requests or actions allowed within a certain time frame
-you have reached the maximum number of requests or actions allowed within a certain time frame
+{"kind":"ip","limit":10,"remaining":9}
+{"kind":"ip","limit":10,"remaining":8}
+{"kind":"ip","limit":10,"remaining":7}
+{"kind":"ip","limit":10,"remaining":6}
+{"kind":"ip","limit":10,"remaining":5}
+{"kind":"ip","limit":10,"remaining":4}
+{"kind":"ip","limit":10,"remaining":3}
+{"kind":"ip","limit":10,"remaining":2}
+{"kind":"ip","limit":10,"remaining":1}
+{"kind":"ip","limit":10,"remaining":0}
+you have reached the maximum number of requests...you have reached the maximum number of requests...
 ```
 
 **Com token**  
-O mesmo IP que acabou de ser bloqueado, agora enviando o header, passa a
-valer 100 req/s e nenhuma requisição é barrada:
+O mesmo IP que acabou de ser bloqueado, agora enviando o header, passa a valer 100 req/s — repare
+que o `kind` muda e nenhuma requisição é barrada:
 
 ```bash
-for i in $(seq 1 12); do curl -s localhost:8080/ -H "API_KEY: test123"; echo; done
+curl -s localhost:8080/dummy -H "API_KEY: test123"
 ```
 ```
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
-ok
+{"kind":"token","limit":100,"remaining":99}
+```
+
+**O /health não é afetado**  
+Mesmo com o IP bloqueado do teste acima:
+
+```bash
+curl -s localhost:8080/dummy    # you have reached the maximum number of requests...
+curl -s localhost:8080/health   # ok
 ```
 
 **O estado no Redis**:
@@ -187,6 +192,7 @@ internal/
   usecase/             orquestração do fluxo de verificação
   infra/
     storage/           as strategies (memory, redis) e a factory
+    web/handler/       os handlers das rotas
     web/middleware/    o middleware HTTP
     web/webserver/     encapsula o echo
 test/integration/      concorrência HTTP real contra memória e Redis
@@ -197,6 +203,11 @@ O fluxo de uma requisição:
 1. O middleware extrai o IP e o header `API_KEY` e delega.
 2. O usecase resolve qual limite vale, consulta o bloqueio, incrementa o contador e decide.
 3. A strategy só sabe contar, expirar e bloquear chaves.
+4. Quando a requisição passa, o middleware deixa o resultado no contexto e o handler pode lê-lo —
+   é assim que o `/dummy` sabe quantas requisições ainda restam.
+
+O middleware é aplicado **por rota**, não globalmente.
+Rotas novas nascem sem limite, caso precise de rate limit precisa passar o middleware no registro.
 
 ### Decisões
 
