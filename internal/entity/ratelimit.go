@@ -1,8 +1,7 @@
 package entity
 
 import (
-	"strconv"
-	"strings"
+	"fmt"
 	"time"
 )
 
@@ -27,15 +26,9 @@ type RateLimit struct {
 }
 
 func (rt RateLimit) CounterKey(now time.Time) string {
-	return strings.Join([]string{
-		counterKeyPrefix, string(rt.Kind),
-		rt.Identifier, strconv.FormatInt(now.Unix(), 10),
-	}, ":")
+	return fmt.Sprintf("%s:%s:%s:%d", counterKeyPrefix, rt.Kind, rt.Identifier, now.Unix())
 }
 
 func (rt RateLimit) BlockKey() string {
-	return strings.Join([]string{
-		blockKeyPrefix, string(rt.Kind),
-		rt.Identifier,
-	}, ":")
+	return fmt.Sprintf("%s:%s:%s", blockKeyPrefix, rt.Kind, rt.Identifier)
 }
