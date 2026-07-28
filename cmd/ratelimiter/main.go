@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,11 +11,16 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
 
 	"github.com/jsperandio/RateLimiter/configs"
 	"github.com/jsperandio/RateLimiter/internal/entity"
+	"github.com/jsperandio/RateLimiter/internal/infra/storage"
+	"github.com/jsperandio/RateLimiter/internal/infra/web/middleware"
+	"github.com/jsperandio/RateLimiter/internal/infra/web/webserver"
+	"github.com/jsperandio/RateLimiter/internal/usecase"
 )
+
+const gracefulTimeout = 10 * time.Second
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(
@@ -24,10 +30,18 @@ func main() {
 		},
 	)))
 
+	if err := run(); err != nil {
+		slog.Error("application terminated", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("server stopped gracefully")
+}
+
+func run() error {
 	cfg, err := configs.LoadConfig(".env")
 	if err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	globalLimits := entity.Limits{
@@ -38,38 +52,49 @@ func main() {
 	}
 
 	if err := globalLimits.Validate(); err != nil {
-		slog.Error("invalid rate limit configuration", "error", err)
-		os.Exit(1)
+		return err
 	}
-
-	e := echo.New()
-	e.Logger = slog.Default()
-	e.IPExtractor = echo.ExtractIPDirect()
-
-	e.Use(middleware.RequestLogger())
-	e.Use(middleware.Recover())
-
-	e.GET("/health", func(c *echo.Context) error {
-		return c.String(http.StatusOK, "ok")
-	})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	sc := echo.StartConfig{
-		Address:         ":" + cfg.HTTPPort,
-		GracefulTimeout: 10 * time.Second,
-		OnShutdownError: func(err error) {
-			slog.Error("graceful shutdown timed out", "error", err)
-		},
+	limiterStorage, err := storage.New(ctx, storage.Config{
+		Strategy:      cfg.StorageStrategy,
+		RedisAddr:     cfg.RedisAddr,
+		RedisPassword: cfg.RedisPassword,
+		RedisDB:       cfg.RedisDB,
+	})
+	if err != nil {
+		return err
 	}
 
-	slog.Info("starting server", "port", cfg.HTTPPort, "storage", cfg.StorageStrategy)
-
-	if err := sc.Start(ctx, e); err != nil {
-		slog.Error("server terminated", "error", err)
-		os.Exit(1)
+	if closer, ok := limiterStorage.(io.Closer); ok {
+		defer func() { _ = closer.Close() }()
 	}
 
-	slog.Info("server stopped gracefully")
+	checker := usecase.NewCheckRateLimitUseCase(limiterStorage, globalLimits, nil)
+
+	ws := webserver.NewWebServer(&webserver.WebServerOptions{
+		Port:            cfg.HTTPPort,
+		GracefulTimeout: gracefulTimeout,
+	})
+
+	ws.Use(middleware.NewRateLimit(checker))
+
+	ws.RegisterRoute(http.MethodGet, "/", func(c *echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	ws.RegisterRoute(http.MethodGet, "/health", func(c *echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	slog.Info("starting server",
+		"port", cfg.HTTPPort,
+		"storage", cfg.StorageStrategy,
+		"ip_limit", cfg.IPMaxRequests,
+		"token_limit", cfg.TokenMaxRequests,
+	)
+
+	return ws.Start(ctx)
 }
