@@ -38,10 +38,11 @@ func (tc *testClock) Advance(d time.Duration) {
 func newTestMemoryStorage(t *testing.T, clock *testClock, cleanup time.Duration) *MemoryStorage {
 	t.Helper()
 
-	ms := NewMemoryStorage(&MemoryStorageOptions{
+	ms, err := NewMemoryStorage(&MemoryStorageOptions{
 		Now:             clock.Now,
 		CleanupInterval: cleanup,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = ms.Close() })
 
 	return ms
@@ -220,14 +221,15 @@ func Test_MemoryStorage_Close(t *testing.T) {
 
 	t.Run("when closed, should stop the cleaner", func(t *testing.T) {
 		clock := newTestClock()
-		ms := NewMemoryStorage(&MemoryStorageOptions{
+		ms, err := NewMemoryStorage(&MemoryStorageOptions{
 			Now:             clock.Now,
 			CleanupInterval: 5 * time.Millisecond,
 		})
+		require.NoError(t, err)
 
 		require.NoError(t, ms.Close())
 
-		_, err := ms.Increment(ctx, "counter", time.Second)
+		_, err = ms.Increment(ctx, "counter", time.Second)
 		require.NoError(t, err)
 
 		clock.Advance(2 * time.Second)
@@ -243,7 +245,7 @@ func Test_MemoryStorage_Close(t *testing.T) {
 	})
 
 	t.Run("when closed twice, should not panic", func(t *testing.T) {
-		ms := NewMemoryStorage(nil)
+		ms := newTestMemoryStorage(t, newTestClock(), time.Minute)
 
 		require.NoError(t, ms.Close())
 		assert.NotPanics(t, func() { _ = ms.Close() })

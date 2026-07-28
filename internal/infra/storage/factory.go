@@ -13,29 +13,29 @@ const (
 	StrategyRedis  string = "redis"
 )
 
-type Config struct {
-	Strategy string
+func New(ctx context.Context, opt *StorageOptions) (entity.LimiterStorage, error) {
+	if opt == nil {
+		parsed, err := NewDefaultStorageOptions()
+		if err != nil {
+			return nil, err
+		}
 
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
-}
+		opt = parsed
+	}
 
-func New(ctx context.Context, cfg Config) (entity.LimiterStorage, error) {
-	stg := strings.ToLower(strings.TrimSpace(cfg.Strategy))
-
-	switch stg {
+	switch strings.ToLower(strings.TrimSpace(opt.Strategy)) {
 	case StrategyMemory:
-		return NewMemoryStorage(nil), nil
+		return NewMemoryStorage(nil)
 
 	case StrategyRedis:
-		return NewRedisStorage(ctx, &RedisStorageOptions{
-			Addr:     cfg.RedisAddr,
-			Password: cfg.RedisPassword,
-			DB:       cfg.RedisDB,
-		})
+		redisOpt, err := NewDefaultRedisStorageOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		return NewRedisStorage(ctx, redisOpt)
 
 	default:
-		return nil, fmt.Errorf("%w: %q", ErrUnknownStrategy, cfg.Strategy)
+		return nil, fmt.Errorf("%w: %q", ErrUnknownStrategy, opt.Strategy)
 	}
 }

@@ -8,19 +8,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/labstack/echo/v5"
 
 	"github.com/jsperandio/RateLimiter/configs"
-	"github.com/jsperandio/RateLimiter/internal/entity"
 	"github.com/jsperandio/RateLimiter/internal/infra/storage"
 	"github.com/jsperandio/RateLimiter/internal/infra/web/middleware"
 	"github.com/jsperandio/RateLimiter/internal/infra/web/webserver"
 	"github.com/jsperandio/RateLimiter/internal/usecase"
 )
-
-const gracefulTimeout = 10 * time.Second
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(
@@ -39,16 +35,11 @@ func main() {
 }
 
 func run() error {
-	cfg, err := configs.LoadConfig(".env")
+	configs.LoadEnv(".env")
+
+	globalLimits, err := configs.NewDefaultRateLimitOptions()
 	if err != nil {
 		return err
-	}
-
-	globalLimits := entity.Limits{
-		IPMaxRequests:      cfg.IPMaxRequests,
-		IPBlockDuration:    cfg.IPBlockDuration,
-		TokenMaxRequests:   cfg.TokenMaxRequests,
-		TokenBlockDuration: cfg.TokenBlockDuration,
 	}
 
 	if err := globalLimits.Validate(); err != nil {
@@ -58,12 +49,12 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	limiterStorage, err := storage.New(ctx, storage.Config{
-		Strategy:      cfg.StorageStrategy,
-		RedisAddr:     cfg.RedisAddr,
-		RedisPassword: cfg.RedisPassword,
-		RedisDB:       cfg.RedisDB,
-	})
+	storageOptions, err := storage.NewDefaultStorageOptions()
+	if err != nil {
+		return err
+	}
+
+	limiterStorage, err := storage.New(ctx, storageOptions)
 	if err != nil {
 		return err
 	}
@@ -74,10 +65,10 @@ func run() error {
 
 	checker := usecase.NewCheckRateLimitUseCase(limiterStorage, globalLimits, nil)
 
-	ws := webserver.NewWebServer(&webserver.WebServerOptions{
-		Port:            cfg.HTTPPort,
-		GracefulTimeout: gracefulTimeout,
-	})
+	ws, err := webserver.NewWebServer(nil)
+	if err != nil {
+		return err
+	}
 
 	ws.Use(middleware.NewRateLimit(checker))
 
@@ -89,11 +80,12 @@ func run() error {
 		return c.String(http.StatusOK, "ok")
 	})
 
-	slog.Info("starting server",
-		"port", cfg.HTTPPort,
-		"storage", cfg.StorageStrategy,
-		"ip_limit", cfg.IPMaxRequests,
-		"token_limit", cfg.TokenMaxRequests,
+	slog.Info("starting application",
+		"storage", storageOptions.Strategy,
+		"ip_limit", globalLimits.IPMaxRequests,
+		"ip_block_duration", globalLimits.IPBlockDuration,
+		"token_limit", globalLimits.TokenMaxRequests,
+		"token_block_duration", globalLimits.TokenBlockDuration,
 	)
 
 	return ws.Start(ctx)

@@ -10,11 +10,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_NewDefaultStorageOptions(t *testing.T) {
+	t.Run("when STORAGE_STRATEGY is unset, should default to redis", func(t *testing.T) {
+		t.Setenv("STORAGE_STRATEGY", "")
+
+		got, err := NewDefaultStorageOptions()
+
+		require.NoError(t, err)
+		assert.Equal(t, StrategyRedis, got.Strategy)
+	})
+
+	t.Run("when STORAGE_STRATEGY is set, should use it", func(t *testing.T) {
+		t.Setenv("STORAGE_STRATEGY", StrategyMemory)
+
+		got, err := NewDefaultStorageOptions()
+
+		require.NoError(t, err)
+		assert.Equal(t, StrategyMemory, got.Strategy)
+	})
+}
+
 func Test_New(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("when the strategy is memory, should return the memory storage", func(t *testing.T) {
-		got, err := New(ctx, Config{
+		t.Setenv("MEMORY_CLEANUP_INTERVAL", "1m")
+
+		got, err := New(ctx, &StorageOptions{
 			Strategy: StrategyMemory,
 		})
 
@@ -26,10 +48,10 @@ func Test_New(t *testing.T) {
 
 	t.Run("when the strategy is redis, should return the redis storage", func(t *testing.T) {
 		mr := miniredis.RunT(t)
+		t.Setenv("REDIS_ADDR", mr.Addr())
 
-		got, err := New(ctx, Config{
-			Strategy:  StrategyRedis,
-			RedisAddr: mr.Addr(),
+		got, err := New(ctx, &StorageOptions{
+			Strategy: StrategyRedis,
 		})
 
 		require.NoError(t, err)
@@ -39,7 +61,9 @@ func Test_New(t *testing.T) {
 	})
 
 	t.Run("when the strategy has spaces or uppercase, should still resolve", func(t *testing.T) {
-		got, err := New(ctx, Config{
+		t.Setenv("MEMORY_CLEANUP_INTERVAL", "1m")
+
+		got, err := New(ctx, &StorageOptions{
 			Strategy: "  MEMORY ",
 		})
 
@@ -49,8 +73,20 @@ func Test_New(t *testing.T) {
 		require.NoError(t, got.(io.Closer).Close())
 	})
 
+	t.Run("when the config is nil, should read the strategy from the environment", func(t *testing.T) {
+		t.Setenv("STORAGE_STRATEGY", StrategyMemory)
+		t.Setenv("MEMORY_CLEANUP_INTERVAL", "1m")
+
+		got, err := New(ctx, nil)
+
+		require.NoError(t, err)
+		assert.IsType(t, &MemoryStorage{}, got)
+
+		require.NoError(t, got.(io.Closer).Close())
+	})
+
 	t.Run("when the strategy is unknown, should return ErrUnknownStrategy", func(t *testing.T) {
-		got, err := New(ctx, Config{
+		got, err := New(ctx, &StorageOptions{
 			Strategy: "postgres",
 		})
 
@@ -59,7 +95,7 @@ func Test_New(t *testing.T) {
 	})
 
 	t.Run("when the strategy is empty, should return ErrUnknownStrategy", func(t *testing.T) {
-		got, err := New(ctx, Config{})
+		got, err := New(ctx, &StorageOptions{})
 
 		assert.ErrorIs(t, err, ErrUnknownStrategy)
 		assert.Nil(t, got)
@@ -70,9 +106,10 @@ func Test_New(t *testing.T) {
 		addr := mr.Addr()
 		mr.Close()
 
-		got, err := New(ctx, Config{
-			Strategy:  StrategyRedis,
-			RedisAddr: addr,
+		t.Setenv("REDIS_ADDR", addr)
+
+		got, err := New(ctx, &StorageOptions{
+			Strategy: StrategyRedis,
 		})
 
 		assert.Error(t, err)

@@ -21,9 +21,14 @@ type MemoryStorage struct {
 	stopOnce sync.Once
 }
 
-func NewMemoryStorage(opt *MemoryStorageOptions) *MemoryStorage {
+func NewMemoryStorage(opt *MemoryStorageOptions) (*MemoryStorage, error) {
 	if opt == nil {
-		opt = NewDefaultMemoryStorageOptions()
+		parsed, err := NewDefaultMemoryStorageOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		opt = parsed
 	}
 
 	if opt.Now == nil {
@@ -31,7 +36,7 @@ func NewMemoryStorage(opt *MemoryStorageOptions) *MemoryStorage {
 	}
 
 	if opt.CleanupInterval <= 0 {
-		opt.CleanupInterval = defaultCleanupInterval
+		return nil, ErrInvalidCleanupInterval
 	}
 
 	ms := &MemoryStorage{
@@ -42,7 +47,7 @@ func NewMemoryStorage(opt *MemoryStorageOptions) *MemoryStorage {
 
 	go ms.cleaner()
 
-	return ms
+	return ms, nil
 }
 
 func (ms *MemoryStorage) Increment(_ context.Context, key string, window time.Duration) (int64, error) {

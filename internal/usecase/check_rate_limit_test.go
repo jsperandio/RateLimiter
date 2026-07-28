@@ -86,10 +86,11 @@ func testLimits() entity.Limits {
 func newTestUseCase(t *testing.T, clock *testClock) (*CheckRateLimitUseCase, *spyStorage) {
 	t.Helper()
 
-	memory := storage.NewMemoryStorage(&storage.MemoryStorageOptions{
+	memory, err := storage.NewMemoryStorage(&storage.MemoryStorageOptions{
 		Now:             clock.Now,
 		CleanupInterval: time.Hour,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = memory.Close() })
 
 	spy := &spyStorage{

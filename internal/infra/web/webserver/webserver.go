@@ -13,17 +13,18 @@ type WebServer struct {
 	echo    *echo.Echo
 }
 
-func NewWebServer(opt *WebServerOptions) *WebServer {
+func NewWebServer(opt *WebServerOptions) (*WebServer, error) {
 	if opt == nil {
-		opt = NewDefaultWebServerOptions()
+		parsed, err := NewDefaultWebServerOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		opt = parsed
 	}
 
 	if opt.Port == "" {
-		opt.Port = defaultPort
-	}
-
-	if opt.GracefulTimeout <= 0 {
-		opt.GracefulTimeout = defaultGracefulTimeout
+		return nil, ErrEmptyPort
 	}
 
 	e := echo.New()
@@ -35,7 +36,7 @@ func NewWebServer(opt *WebServerOptions) *WebServer {
 	return &WebServer{
 		options: opt,
 		echo:    e,
-	}
+	}, nil
 }
 
 func (ws *WebServer) Use(mw ...echo.MiddlewareFunc) {

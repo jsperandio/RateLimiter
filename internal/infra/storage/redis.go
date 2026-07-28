@@ -14,7 +14,12 @@ type RedisStorage struct {
 
 func NewRedisStorage(ctx context.Context, opt *RedisStorageOptions) (*RedisStorage, error) {
 	if opt == nil {
-		opt = NewDefaultRedisStorageOptions()
+		parsed, err := NewDefaultRedisStorageOptions()
+		if err != nil {
+			return nil, err
+		}
+
+		opt = parsed
 	}
 
 	client := redis.NewClient(&redis.Options{

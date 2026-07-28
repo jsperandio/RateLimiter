@@ -1,20 +1,21 @@
 package webserver
 
-import "time"
+import (
+	"time"
 
-const (
-	defaultPort            = "8080"
-	defaultGracefulTimeout = 10 * time.Second
+	"github.com/caarlos0/env/v11"
 )
 
 type WebServerOptions struct {
-	Port            string
-	GracefulTimeout time.Duration
+	Port            string        `env:"HTTP_PORT" envDefault:"8080"`
+	GracefulTimeout time.Duration `env:"HTTP_GRACEFUL_TIMEOUT" envDefault:"10s"`
 }
 
-func NewDefaultWebServerOptions() *WebServerOptions {
-	return &WebServerOptions{
-		Port:            defaultPort,
-		GracefulTimeout: defaultGracefulTimeout,
+func NewDefaultWebServerOptions() (*WebServerOptions, error) {
+	opt, err := env.ParseAs[WebServerOptions]()
+	if err != nil {
+		return nil, err
 	}
+
+	return &opt, nil
 }

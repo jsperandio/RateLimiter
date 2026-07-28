@@ -22,10 +22,7 @@ type mockRateLimitChecker struct {
 	wasCalled     bool
 }
 
-func (mc *mockRateLimitChecker) Execute(
-	ctx context.Context,
-	input usecase.CheckRateLimitInputDTO,
-) (usecase.CheckRateLimitOutputDTO, error) {
+func (mc *mockRateLimitChecker) Execute(ctx context.Context, input usecase.CheckRateLimitInputDTO) (usecase.CheckRateLimitOutputDTO, error) {
 	mc.wasCalled = true
 	mc.receivedInput = input
 
