@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_PORT: "8080"
+      HTTP_GRACEFUL_TIMEOUT: "${HTTP_GRACEFUL_TIMEOUT:-10s}"
+      STORAGE_STRATEGY: "${STORAGE_STRATEGY:-redis}"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_DB: "${REDIS_DB:-0}"
+      RATE_LIMIT_IP_MAX_REQUESTS: "${RATE_LIMIT_IP_MAX_REQUESTS:-10}"
+      RATE_LIMIT_IP_BLOCK_DURATION: "${RATE_LIMIT_IP_BLOCK_DURATION:-1m}"
+      RATE_LIMIT_TOKEN_MAX_REQUESTS: "${RATE_LIMIT_TOKEN_MAX_REQUESTS:-100}"
+      RATE_LIMIT_TOKEN_BLOCK_DURATION: "${RATE_LIMIT_TOKEN_BLOCK_DURATION:-1m}"
+    depends_on:
+      - redis
+
+  test:
+    image: golang:1.26
+    working_dir: /src
+    volumes:
+      - .:/src
+      - go-mod-cache:/go/pkg/mod
+    command: go test ./... -race -count=1
+    profiles:
+      - test
+
+volumes:
+  go-mod-cache:
