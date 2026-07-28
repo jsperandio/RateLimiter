@@ -92,14 +92,22 @@ func newTestUseCase(t *testing.T, clock *testClock) (*CheckRateLimitUseCase, *sp
 	})
 	t.Cleanup(func() { _ = memory.Close() })
 
-	spy := &spyStorage{LimiterStorage: memory}
+	spy := &spyStorage{
+		LimiterStorage: memory,
+	}
 
-	return NewCheckRateLimitUseCase(spy, testLimits(), &CheckRateLimitOptions{Now: clock.Now}), spy
+	opt := &CheckRateLimitOptions{
+		Now: clock.Now,
+	}
+
+	return NewCheckRateLimitUseCase(spy, testLimits(), opt), spy
 }
 
 func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 	ctx := context.Background()
-	byIP := CheckRateLimitInputDTO{IP: "1.2.3.4"}
+	byIP := CheckRateLimitInputDTO{
+		IP: "1.2.3.4",
+	}
 
 	t.Run("when under the limit, should allow and report the remaining requests", func(t *testing.T) {
 		uc, _ := newTestUseCase(t, newTestClock())
@@ -215,7 +223,10 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 
 	t.Run("when a token is present, should apply the token limit instead of the ip limit", func(t *testing.T) {
 		uc, _ := newTestUseCase(t, newTestClock())
-		byToken := CheckRateLimitInputDTO{IP: "1.2.3.4", Token: "abc123"}
+		byToken := CheckRateLimitInputDTO{
+			IP:    "1.2.3.4",
+			Token: "abc123",
+		}
 
 		for i := range 11 {
 			got, err := uc.Execute(ctx, byToken)
@@ -229,7 +240,10 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 
 	t.Run("when the token limit is exceeded, should deny", func(t *testing.T) {
 		uc, _ := newTestUseCase(t, newTestClock())
-		byToken := CheckRateLimitInputDTO{IP: "1.2.3.4", Token: "abc123"}
+		byToken := CheckRateLimitInputDTO{
+			IP:    "1.2.3.4",
+			Token: "abc123",
+		}
 
 		for range 100 {
 			_, err := uc.Execute(ctx, byToken)
@@ -250,7 +264,10 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		got, err := uc.Execute(ctx, CheckRateLimitInputDTO{IP: "1.2.3.4", Token: "abc123"})
+		got, err := uc.Execute(ctx, CheckRateLimitInputDTO{
+			IP:    "1.2.3.4",
+			Token: "abc123",
+		})
 
 		require.NoError(t, err)
 		assert.True(t, got.Allowed, "o balde do token e independente do balde do ip")
@@ -266,7 +283,10 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 	})
 
 	t.Run("when the storage fails to report the block, should return the error", func(t *testing.T) {
-		uc := NewCheckRateLimitUseCase(failingStorage{failIsBlocked: true}, testLimits(), nil)
+		stg := failingStorage{
+			failIsBlocked: true,
+		}
+		uc := NewCheckRateLimitUseCase(stg, testLimits(), nil)
 
 		got, err := uc.Execute(ctx, byIP)
 
@@ -275,7 +295,10 @@ func Test_CheckRateLimitUseCase_Execute(t *testing.T) {
 	})
 
 	t.Run("when the storage fails to increment, should return the error", func(t *testing.T) {
-		uc := NewCheckRateLimitUseCase(failingStorage{failIncrement: true}, testLimits(), nil)
+		stg := failingStorage{
+			failIncrement: true,
+		}
+		uc := NewCheckRateLimitUseCase(stg, testLimits(), nil)
 
 		got, err := uc.Execute(ctx, byIP)
 

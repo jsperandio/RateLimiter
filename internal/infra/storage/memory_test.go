@@ -16,7 +16,9 @@ type testClock struct {
 }
 
 func newTestClock() *testClock {
-	return &testClock{now: time.Date(2026, 7, 28, 10, 30, 15, 0, time.UTC)}
+	return &testClock{
+		now: time.Date(2026, 7, 28, 10, 30, 15, 0, time.UTC),
+	}
 }
 
 func (tc *testClock) Now() time.Time {
