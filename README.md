@@ -7,7 +7,7 @@ Quando o limite é excedido, o cliente recebe **429** e fica bloqueado por um te
 
 ## Como rodar
 
-Tudo funciona só com Docker:
+Docker:
 
 ```bash
 make up      # sobe redis + app, com a app em :8080
@@ -18,7 +18,7 @@ make down    # derruba tudo e remove os volumes
 O `docker-compose.yaml` já define as variáveis necessárias, então **não é preciso criar um `.env`**
 para subir o projeto.
 
-Para rodar sem Docker nenhum, a strategy em memória dispensa infra externa:
+Sem Docker, a strategy em memória não precisa de  infra externa:
 
 ```bash
 STORAGE_STRATEGY=memory go run ./cmd/ratelimiter
@@ -40,7 +40,7 @@ make test-docker
 | `GET /dummy` | sim | JSON com o limite e quantas requisições ainda restam |
 
 
-## Vendo o limiter funcionar
+## Funcionamento
 
 Com `make up`, os limites são 10 req/s por IP e 100 req/s por token.
 
@@ -65,8 +65,7 @@ you have reached the maximum number of requests...you have reached the maximum n
 ```
 
 **Com token**  
-O mesmo IP que acabou de ser bloqueado, agora enviando o header, passa a valer 100 req/s — repare
-que o `kind` muda e nenhuma requisição é barrada:
+O mesmo IP que acabou de ser bloqueado, agora enviando o token no header, passa a valer 100 req/s:
 
 ```bash
 curl -s localhost:8080/dummy -H "API_KEY: test123"
@@ -75,7 +74,7 @@ curl -s localhost:8080/dummy -H "API_KEY: test123"
 {"kind":"token","limit":100,"remaining":99}
 ```
 
-**O /health não é afetado**  
+**/health não limitado**  
 Mesmo com o IP bloqueado do teste acima:
 
 ```bash
@@ -83,7 +82,7 @@ curl -s localhost:8080/dummy    # you have reached the maximum number of request
 curl -s localhost:8080/health   # ok
 ```
 
-**O estado no Redis**:
+**Estado no Redis**:
 
 ```bash
 docker compose exec redis redis-cli --scan --pattern 'ratelimit:*'
@@ -117,10 +116,10 @@ A ordem de prioridade é:
 
 variável de ambiente > `.env` > default declarado na tag. 
 
-O ambiente sempre vence,
-comportamento necessário para o docker compose, onde não existe `.env` dentro do container.
+Variáveis de ambiente sempre vencem as demais configs,
+comportamento necessário para o docker compose, pois não existe `.env` dentro do container.
 
-Configuração inválida derruba a aplicação **no boot**, não a cada requisição:
+Configuração inválida derruba a aplicação **no boot**:
 
 ```bash
 REDIS_DB=abc STORAGE_STRATEGY=redis go run ./cmd/ratelimiter
@@ -135,7 +134,7 @@ REDIS_DB=abc STORAGE_STRATEGY=redis go run ./cmd/ratelimiter
 
 - **Por IP**: o IP de origem da conexão define o grupo.
 - **Por token**: quando o header `API_KEY` vem preenchido, ele define o grupo.
-- **Precedência**: o limite do token **substitui** o do IP; Não soma, e não escolhe o menor. Com IP
+- **Precedência**: o limite do token **substitui** o do IP; não soma, e não escolhe o menor. Com IP
   a 10 req/s e token a 100 req/s, uma requisição com token vale 100 req/s, mesmo que aquele IP já
   esteja bloqueado.
 
@@ -144,9 +143,9 @@ configurado e **todas** as requisições seguintes são rejeitadas até ele expi
 uma janela nova.
 
 Com `RATE_LIMIT_IP_MAX_REQUESTS=10`, exatamente 10 requisições passam: a décima ainda é atendida, a
-décima-primeira dispara o bloqueio.
+décima primeira dispara o bloqueio.
 
-> **Sobre o token:** o desafio não define emissão nem validação de tokens, e o limite configurado é
+> **Sobre o token:** o enunciado não define emissão nem validação de tokens, e o limite configurado é
 > global. Portanto qualquer valor não-vazio em `API_KEY` é aceito e recebe o limite de token. A
 > consequência prática é que um cliente bloqueado por IP consegue contornar o limite inventando um
 > token sem autenticação.
@@ -182,7 +181,7 @@ Para plugar um backend novo:
 
 ## Arquitetura
 
-Clean Architecture, espelhando o layout do `20-CleanArch` do curso.
+Clean Architecture, tomando como base o layout do curso.
 
 ```
 cmd/ratelimiter/       wiring: config → storage → usecase → middleware → webserver
@@ -226,7 +225,7 @@ envelope JSON e sem newline final.
 * [caarlos0/env](https://github.com/caarlos0/env) para configuração e
 * [testify](https://github.com/stretchr/testify) nos testes.
 
-## Limitações conhecidas
+## Importante
 
 - Não há autenticação: qualquer `API_KEY` não-vazia é aceita.
 - O limite de token é único e global, não configurável por token(mas daria para ser).
